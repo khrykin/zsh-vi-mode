@@ -683,7 +683,8 @@ function zvm_backward_kill_region() {
   done
 
   bpos=$bpos+1
-  CUTBUFFER=${BUFFER:$bpos:$((epos-bpos))}
+  local cutbuffer=${BUFFER:$bpos:$((epos-bpos))}
+  printf '%s' $cutbuffer | pbcopy
   BUFFER="${BUFFER:0:$bpos}${BUFFER:$epos}"
   CURSOR=$bpos
 }
@@ -705,7 +706,8 @@ function zvm_forward_kill_line() {
 function zvm_kill_line() {
   local ret=($(zvm_calc_selection $ZVM_MODE_VISUAL_LINE))
   local bpos=${ret[1]} epos=${ret[2]}
-  CUTBUFFER=${BUFFER:$bpos:$((epos-bpos))}$'\n'
+  local cutbuffer=${BUFFER:$bpos:$((epos-bpos))}$'\n'
+  printf '%s' $cutbuffer | pbcopy
   BUFFER="${BUFFER:0:$bpos}${BUFFER:$epos}"
   CURSOR=$bpos
 }
@@ -714,7 +716,8 @@ function zvm_kill_line() {
 function zvm_kill_whole_line() {
   local ret=($(zvm_calc_selection $ZVM_MODE_VISUAL_LINE))
   local bpos=$ret[1] epos=$ret[2] cpos=$ret[3]
-  CUTBUFFER=${BUFFER:$bpos:$((epos-bpos))}$'\n'
+  local cutbuffer=${BUFFER:$bpos:$((epos-bpos))}$'\n'
+  printf '%s' $cutbuffer | pbcopy
 
   # Adjust region range of deletion
   if (( $epos < $#BUFFER )); then
@@ -1036,10 +1039,11 @@ function zvm_calc_selection() {
 function zvm_yank() {
   local ret=($(zvm_calc_selection $1))
   local bpos=$ret[1] epos=$ret[2] cpos=$ret[3]
-  CUTBUFFER=${BUFFER:$bpos:$((epos-bpos))}
+  local cutbuffer=${BUFFER:$bpos:$((epos-bpos))}
   if [[ ${1:-$ZVM_MODE} == $ZVM_MODE_VISUAL_LINE ]]; then
-    CUTBUFFER=${CUTBUFFER}$'\n'
+    cutbuffer=${cutbuffer}$'\n'
   fi
+  printf '%s' $cutbuffer | pbcopy
   CURSOR=$bpos MARK=$epos
 }
 
@@ -1086,7 +1090,7 @@ function zvm_vi_yank() {
 # Put cutbuffer after the cursor
 function zvm_vi_put_after() {
   local head= foot=
-  local content=${CUTBUFFER}
+  local content=$(pbpaste)
   local offset=1
 
   if [[ ${content: -1} == $'\n' ]]; then
@@ -1138,7 +1142,7 @@ function zvm_vi_put_after() {
 # Put cutbuffer before the cursor
 function zvm_vi_put_before() {
   local head= foot=
-  local content=${CUTBUFFER}
+  local content=$(pbpaste)
 
   if [[ ${content: -1} == $'\n' ]]; then
     local pos=$CURSOR
@@ -1187,7 +1191,7 @@ function zvm_replace_selection() {
     cpos=$(($bpos + $#cutbuf - 1))
   fi
 
-  CUTBUFFER=${BUFFER:$bpos:$((epos-bpos))}
+  local cutbuffer=${BUFFER:$bpos:$((epos-bpos))}
 
   # Check if it is visual line mode
   if [[ $ZVM_MODE == $ZVM_MODE_VISUAL_LINE ]]; then
@@ -1196,16 +1200,17 @@ function zvm_replace_selection() {
     elif (( $bpos > 0 )); then
       bpos=$bpos-1
     fi
-    CUTBUFFER=${CUTBUFFER}$'\n'
+    cutbuffer=$(pbpaste)$'\n'
   fi
 
+  printf '%s' $cutbuffer | pbcopy
   BUFFER="${BUFFER:0:$bpos}${cutbuf}${BUFFER:$epos}"
   CURSOR=$cpos
 }
 
 # Replace characters of the visual selection
 function zvm_vi_replace_selection() {
-  zvm_replace_selection $CUTBUFFER
+  zvm_replace_selection $(pbpaste)
   zvm_exit_visual_mode ${1:-true}
 }
 
@@ -1220,13 +1225,14 @@ function zvm_vi_change() {
   local ret=($(zvm_calc_selection))
   local bpos=$ret[1] epos=$ret[2]
 
-  CUTBUFFER=${BUFFER:$bpos:$((epos-bpos))}
+  local cutbuffer=${BUFFER:$bpos:$((epos-bpos))}
 
   # Check if it is visual line mode
   if [[ $ZVM_MODE == $ZVM_MODE_VISUAL_LINE ]]; then
-    CUTBUFFER=${CUTBUFFER}$'\n'
+    cutbuffer=${cutbuffer}$'\n'
   fi
 
+  printf '%s' $cutbuffer | pbcopy
   BUFFER="${BUFFER:0:$bpos}${BUFFER:$epos}"
   CURSOR=$bpos
 
@@ -1240,16 +1246,16 @@ function zvm_vi_change() {
     # characters after the last newline character.
     while :; do
       # Forward find the last newline character's position
-      npos=$(zvm_substr_pos $CUTBUFFER $'\n' $npos)
+      npos=$(zvm_substr_pos $cutbuffer $'\n' $npos)
       if [[ $npos == -1 ]]; then
         if (($ncount == 0)); then
-          ccount=$#CUTBUFFER
+          ccount=$#cutbuffer
         fi
         break
       fi
       npos=$((npos+1))
       ncount=$(($ncount + 1))
-      ccount=$(($#CUTBUFFER - $npos))
+      ccount=$(($#cutbuffer - $npos))
     done
     zvm_reset_repeat_commands $ZVM_MODE c $ncount $ccount
   fi
@@ -1269,10 +1275,11 @@ function zvm_vi_change_eol() {
     fi
   done
 
-  CUTBUFFER=${BUFFER:$bpos:$((epos-bpos))}
+  local cutbuffer=${BUFFER:$bpos:$((epos-bpos))}
+  printf '%s' $cutbuffer | pbcopy
   BUFFER="${BUFFER:0:$bpos}${BUFFER:$epos}"
 
-  zvm_reset_repeat_commands $ZVM_MODE c 0 $#CUTBUFFER
+  zvm_reset_repeat_commands $ZVM_MODE c 0 $#cutbuffer
   zvm_select_vi_mode $ZVM_MODE_INSERT
 }
 
@@ -2134,7 +2141,8 @@ function zvm_change_surround_text_object() {
   else
     ((epos++))
   fi
-  CUTBUFFER=${BUFFER:$bpos:$(($epos-$bpos))}
+  local cutbuffer=${BUFFER:$bpos:$(($epos-$bpos))}
+  printf '%s' $cutbuffer | pbcopy
   case ${action:0:1} in
     c)
       BUFFER="${BUFFER:0:$bpos}${BUFFER:$epos}"
